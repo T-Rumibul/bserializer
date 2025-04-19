@@ -1,0 +1,42 @@
+{
+  "name": "bserializer",
+  "version": "1.0.0",
+  "description": "A TypeScript-based serialization/deserialization library built for exploration and learning. Slower than Node.js' native JSON methods better use something like BSON",
+  "license": "ISC",
+  "author": "Andrew K.",
+  "type": "module",
+  "keywords": [
+  "serializer",
+  "deserializer",
+  "binary",
+  "data-serialization",
+  "typescript",
+  "compression",
+  "zlib",
+  "custom-protocol",
+  "binary-format",
+  "buffer",
+  "encoding",
+  "decoding",
+  "fun-project",
+  "learning",
+  "experimental",
+  "low-level"
+],
+  "main": "./dist/index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "benchmark": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --roots \"benchmark\"",
+    "build": "tsc"
+  },
+  "dependencies": {
+    
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "jest": "^29.7.0"
+  }
+}

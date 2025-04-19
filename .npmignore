@@ -1,0 +1,9 @@
+node_modules
+src
+tests
+benchmark
+jest.config.js
+node22.json
+tsconfig.json
+
+!dist
