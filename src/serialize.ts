@@ -1,92 +1,140 @@
-import { TYPE_CODES } from './typecodes.ts';
-import { Buffer } from 'buffer';
+import { TYPE_CODES } from "./typecodes.ts";
+import { Buffer } from "buffer";
+import { BufferWriter } from "./bufferWriter.ts";
 
-function getFloatScaleInfo(value: number): { scale: number; decimalPlaces: number } | null {
+const {
+  STRING,
+  NUMBER,
+  BOOLEAN,
+  NULL,
+  ARRAY,
+  OBJECT,
+  FIXED_POINT,
+  UNDEFINED,
+  BIG_FLOAT_STRING,
+} = TYPE_CODES;
+
+function getFloatScaleInfo(
+  value: number
+): { scale: number; decimalPlaces: number } | null {
   const str = value.toString();
-  if (!/^-?\d+\.\d+$/.test(str)) return null;
-  const decimalPlaces = str.split('.')[1].length;
+  const dotIndex = str.indexOf(".");
+  if (dotIndex === -1) return null;
+  const eIndex = str.indexOf("e");
+  if (eIndex !== -1) return null; // Skip exponential notation
+
+  const fractionalPart = str.substring(dotIndex + 1);
+  const decimalPlaces = fractionalPart.length;
+  if (decimalPlaces === 0) return null;
   const scale = 10 ** decimalPlaces;
   return { scale, decimalPlaces };
 }
 
-function serializeArray(arr: unknown[]): Buffer {
-  const buffers: Buffer[] = [];
-  const lengthBuf = Buffer.alloc(4);
-  lengthBuf.writeUInt32LE(arr.length, 0);
-  buffers.push(lengthBuf);
-
-  for (const el of arr) {
-    buffers.push(serializeData(el));
+function _serializePrimitive(
+  data: unknown,
+  buffer: BufferWriter,
+  type: string
+) {
+  if (data === null) {
+    buffer.writeUInt8(NULL);
+    return;
   }
-
-  return Buffer.concat(buffers);
-}
-
-function serializeObject(obj: Record<string, unknown>): Buffer {
-  const buffers: Buffer[] = [];
-  const entries = Object.entries(obj);
-  const countBuf = Buffer.alloc(4);
-  countBuf.writeUInt32LE(entries.length, 0);
-  buffers.push(countBuf);
-
-  for (const [key, value] of entries) {
-    const keyBuf = Buffer.from(key, 'utf8');
-    if (keyBuf.length > 255) throw new Error('Key too long');
-
-    buffers.push(Buffer.from([keyBuf.length]));
-    buffers.push(keyBuf);
-    buffers.push(serializeData(value));
+  if (data === undefined) {
+    buffer.writeUInt8(UNDEFINED);
+    return;
   }
+  switch (type) {
+    case "string": {
+      buffer.writeUInt8(STRING);
+      const strBuf = Buffer.from(data as string, "utf8");
+      buffer.writeUInt32LE(strBuf.length);
+      buffer.writeBuffer(strBuf);
 
-  return Buffer.concat(buffers);
-}
+      return;
+    }
 
-export function serializeData(data: unknown): Buffer {
-  const type = typeof data;
-
-  const handlers: Record<string, (val: any) => Buffer> = {
-    string: (val: string) => {
-      const buf = Buffer.from(val, 'utf8');
-      return Buffer.concat([Buffer.from([TYPE_CODES.STRING, buf.length]), buf]);
-    },
-    number: (val: number) => {
-      const scaleInfo = getFloatScaleInfo(val);
+    case "number": {
+      const scaleInfo = getFloatScaleInfo(data as number);
       if (scaleInfo) {
         const { scale } = scaleInfo;
 
         if (scale > 0xffffffff) {
-            // Too big to store in UInt32, fall back to stringified float
-            const str = val.toString();
-            const strBuf = Buffer.from(str, 'utf8');
-            return Buffer.concat([
-              Buffer.from([TYPE_CODES.BIG_FLOAT_STRING, strBuf.length]),
-              strBuf,
-            ]);
-          }
-          
-        const scaled = BigInt(Math.round(val * scale));
-        const buf = Buffer.alloc(12);
-        buf.writeUInt32LE(scale, 0);
-        buf.writeBigInt64LE(scaled, 4);
-        return Buffer.concat([Buffer.from([TYPE_CODES.FIXED_POINT]), buf]);
-      } else {
-        const buf = Buffer.alloc(8);
-        buf.writeDoubleLE(val);
-        return Buffer.concat([Buffer.from([TYPE_CODES.NUMBER]), buf]);
-      }
-    },
-    boolean: (val: boolean) => Buffer.from([TYPE_CODES.BOOLEAN, val ? 1 : 0]),
-    object: (val: any) => {
-      if (val === null) return Buffer.from([TYPE_CODES.NULL]);
-      if (Array.isArray(val)) {
-        return Buffer.concat([Buffer.from([TYPE_CODES.ARRAY]), serializeArray(val)]);
-      }
-      return Buffer.concat([Buffer.from([TYPE_CODES.OBJECT]), serializeObject(val)]);
-    },
-    undefined: () => Buffer.from([TYPE_CODES.UNDEFINED]),
-  };
+          // Too big to store in UInt32, fall back to stringified float
+          const str = (data as number).toString();
+          const strLen = Buffer.byteLength(str, "utf-8");
+          buffer.writeUInt8(BIG_FLOAT_STRING);
+          buffer.writeUInt32LE(strLen);
+          buffer.writeString(str);
+          return;
+        }
 
-  const handler = handlers[type];
-  if (!handler) throw new Error('Unsupported data type: ' + type);
-  return handler(data);
+        const scaled = BigInt(Math.round((data as number) * scale));
+
+        buffer.writeUInt8(FIXED_POINT);
+
+        buffer.writeUInt32LE(scale);
+
+        buffer.writeBigInt64LE(scaled);
+
+        return;
+      } else {
+        buffer.writeUInt8(NUMBER);
+        buffer.writeDoubleLE(data as number);
+
+        return;
+      }
+    }
+
+    case "boolean": {
+      buffer.writeUInt8(BOOLEAN);
+      buffer.writeUInt8(data ? 1 : 0);
+      return;
+    }
+    default: {
+      throw new Error("Unsupported data type: " + type);
+    }
+  }
+}
+
+function _serializeData(data: unknown, buffer: BufferWriter): void {
+  const type = typeof data;
+  if (type !== "object" || data === null || data === undefined) {
+    _serializePrimitive(data, buffer, type);
+    return;
+  }
+
+  if (Array.isArray(data)) {
+    const length = data.length;
+
+    buffer.writeUInt8(ARRAY);
+    buffer.writeUInt32LE(length);
+
+    for (let i = 0; i < length; i++) {
+      _serializeData(data[i], buffer);
+    }
+
+    return;
+  }
+
+  if (type === "object") {
+    buffer.writeUInt8(OBJECT);
+    const entries = Object.entries(data);
+    const entriesLength = entries.length;
+    buffer.writeUInt32LE(entriesLength);
+
+    for (let i = 0; i < entriesLength; i++) {
+      const keyBuf = Buffer.from(entries[i][0], "utf8");
+      buffer.writeUInt32LE(keyBuf.length);
+      buffer.writeBuffer(keyBuf);
+      _serializeData(entries[i][1], buffer);
+    }
+    return;
+  }
+}
+
+export function serializeData(data: any) {
+  
+  const buffer = new BufferWriter();
+  _serializeData(data, buffer);
+  return buffer.toBuffer();
 }
