@@ -3,14 +3,14 @@ import fs from 'fs'
 
 describe("Array Serialization", () => {
     // Test primitive arrays
-    test("should roundtrip 1D number array", () => {
+    test("should roundtrip 1D number array", async () => {
       const input = [1, 2, 3];
       const buffer = serializeData(input);
       const result = deserializeData(buffer);
       expect(result).toEqual(input);
     });
   
-    test("should roundtrip 2D number array", () => {
+    test("should roundtrip 2D number array", async () => {
       const input = [[1, 2], [3, 4]];
       const buffer = serializeData(input);
       const result = deserializeData(buffer);
@@ -18,7 +18,7 @@ describe("Array Serialization", () => {
     });
   
     // Test mixed type arrays
-    test("should handle mixed primitive types", () => {
+    test("should handle mixed primitive types", async () => {
       const input = [1, "test", true, null];
       const buffer = serializeData(input);
       const result = deserializeData(buffer);
@@ -26,7 +26,7 @@ describe("Array Serialization", () => {
     });
   
     // Test nested arrays
-    test("should handle nested arrays", () => {
+    test("should handle nested arrays", async () => {
       const input = [[1, [2, 3]], [4]];
       const buffer = serializeData(input);
       const result = deserializeData(buffer);
@@ -34,14 +34,14 @@ describe("Array Serialization", () => {
     });
   
     // Test empty arrays
-    test("should handle empty 1D array", () => {
+    test("should handle empty 1D array", async () => {
       const input = [];
       const buffer = serializeData(input);
       const result = deserializeData(buffer);
       expect(result).toEqual(input);
     });
   
-    test("should handle empty 2D array", () => {
+    test("should handle empty 2D array", async () => {
       const input = [[]];
       const buffer = serializeData(input);
       const result = deserializeData(buffer);
@@ -49,7 +49,7 @@ describe("Array Serialization", () => {
     });
   
     // Test complex arrays through object API
-    test("should handle arrays with objects through object API", () => {
+    test("should handle arrays with objects through object API", async () => {
       const testObj = {
         data: [
           { id: 1, values: [1.1, 2.2] },
@@ -58,7 +58,7 @@ describe("Array Serialization", () => {
       };
   
       const testFile = "__test_complex_array.json.gz";
-      writeToFile(testFile, testObj);
+      await writeToFile(testFile, testObj);
       const result = readFromFile(testFile);
       fs.unlinkSync(testFile);
       
@@ -66,7 +66,7 @@ describe("Array Serialization", () => {
     });
   
     // Test large arrays
-    test("should handle large arrays", () => {
+    test("should handle large arrays", async () => {
       const input = Array(1000).fill().map((_, i) => i);
       const buffer = serializeData(input);
       const result = deserializeData(buffer);
@@ -74,7 +74,7 @@ describe("Array Serialization", () => {
     });
   
     // Test fixed-point numbers
-    test("should handle decimal numbers with scaling", () => {
+    test("should handle decimal numbers with scaling", async () => {
       const input = [1.5, 2.25, 3.333];
       const buffer = serializeData(input);
       const result = deserializeData(buffer);
@@ -82,7 +82,7 @@ describe("Array Serialization", () => {
     });
   
     // Test jagged arrays
-    test("should handle jagged 2D arrays", () => {
+    test("should handle jagged 2D arrays", async () => {
       const input = [[1, 2], [3], [4, 5, 6]];
       const buffer = serializeData(input);
       const result = deserializeData(buffer);
