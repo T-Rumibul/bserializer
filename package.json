@@ -1,6 +1,6 @@
 {
   "name": "bserializer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A TypeScript-based serialization/deserialization library built for exploration and learning. Slower than Node.js' native JSON methods better use something like BSON",
   "license": "ISC",
   "author": "Andrew K.",
